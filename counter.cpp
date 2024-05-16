@@ -14,9 +14,9 @@
 #define k_b 8.31 * 0.001 //кДж/К*моль
 #define tau 0.001 // пикасекунды
 #define T 300 //K
-#define NSTEPS 1000000 //1000000
+#define NSTEPS 500 //1000000
 #define STRIDE 10
-#define L 1.0
+#define L 20.0
 
 
 void saveCoordinates(const std::string filename,
@@ -45,13 +45,16 @@ void saveCoordinates(const std::string filename,
 
 
 float3 f_i_new(int& i, std::vector<std::vector<int> >& k_for_i, std::vector<std::vector<int> >& k_for_i_back, HiCData& hic, int& max_U_ij, std::vector<float3>& r){
-    float3 V_cov;
+    float3 V_cov = {0, 0, 0};
     float3 V_hic = {0, 0, 0};
-    float3 dist1 = r[i].distance(r[i-1]);
-    float3 dist2 = r[i+1].distance(r[i]);
-
-    V_cov = dist2 * k_c*2 - dist2/dist2.length() * 2 * k_c *r_0;
-    V_cov += dist1 * k_c*2 - dist1/ dist1.length() * 2 * k_c *r_0;
+    if (i > 0){
+        float3 dist1 = r[i].distance(r[i-1]);
+        V_cov += dist1 * k_c*2 - dist1/ dist1.length() * 2 * k_c *r_0;
+    }
+    if (i < hic.atomCount-1){
+        float3 dist2 = r[i+1].distance(r[i]);
+        V_cov += dist2 * k_c*2 - dist2/dist2.length() * 2 * k_c *r_0;
+    }
     
     float k_ij;
     float r_ij_0;
@@ -176,7 +179,7 @@ std::vector<float3> counting(HiCData& hic){
     for(int t = 0; t < NSTEPS; t++){
         if (t % STRIDE == 0){
             //printf("%d %f\n", t, temp);
-            printf("%d \n", t);
+            printf("%d/%d \n", t, NSTEPS);
             saveCoordinates("coord.gro", mod, r_new, v_new, hic.atomCount);
             mod = "a";
         }
