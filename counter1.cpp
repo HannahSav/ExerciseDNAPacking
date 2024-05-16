@@ -16,7 +16,7 @@
 #define T 300 //K
 #define NSTEPS 300 //1000000
 #define STRIDE 10
-#define L 1.0
+#define L 20.0
 
 
 void saveCoordinates(const std::string filename,
@@ -44,19 +44,22 @@ void saveCoordinates(const std::string filename,
 }
 
 
-float3 f_i_new(int& i, int& N_pairs, std::vector<std::vector<int> >& k_for_i, HiCData& hic, int& max_U_ij, std::vector<float3>& r){
-    float3 V_cov;
+float3 f_i_new(int& i, std::vector<std::vector<int> >& k_for_i, HiCData& hic, int& max_U_ij, std::vector<float3>& r){
+    float3 V_cov = {0, 0, 0};
     float3 V_hic = {0, 0, 0};
-    float3 dist1 = r[i].distance(r[i-1]);
-    float3 dist2 = r[i+1].distance(r[i]);
-
-    V_cov = dist2 * k_c*2 - dist2/dist2.length() * 2 * k_c *r_0;
-    V_cov += dist1 * k_c*2 - dist1/ dist1.length() * 2 * k_c *r_0;
+    if (i > 0){
+        float3 dist1 = r[i].distance(r[i-1]);
+        V_cov += dist1 * k_c*2 - dist1/ dist1.length() * 2 * k_c *r_0;
+    }
+    if (i < hic.atomCount-1){
+        float3 dist2 = r[i+1].distance(r[i]);
+        V_cov += dist2 * k_c*2 - dist2/dist2.length() * 2 * k_c *r_0;
+    }
     
     float k_ij;
     float r_ij_0;
 
-     for(int k = 0; k < k_for_i[i].size(); k++){
+    for(int k = 0; k < k_for_i[i].size(); k++){
         int num_of_pair = k_for_i[i][k];
         int i_pair = hic.pairs[num_of_pair].i;
         int j_pair = hic.pairs[num_of_pair].j;
@@ -66,6 +69,7 @@ float3 f_i_new(int& i, int& N_pairs, std::vector<std::vector<int> >& k_for_i, Hi
         r_ij_0 = 0.19 + 0.01*max_U_ij/n_pair;
         V_hic += dist0*k_ij * 2 - dist0/dist0.length()*r_ij_0;
     }
+
     return V_cov+V_hic;
 }
 
@@ -101,18 +105,18 @@ std::pair<std::vector<float3>, std::vector<float3> > step(HiCData& hic, std::vec
     int N = hic.atomCount;
     int N_pairs = hic.pairCount;
     for(int i = 0; i < N; i++){
-        float3 res = f_i_new(i, N_pairs, k_for_i, hic, max_U_ij, r);
+        float3 res = f_i_new(i, k_for_i, hic, max_U_ij, r);
         f_new.push_back(res);
     }
-    printf("\nCounted f");
+    //printf("\nCounted f");
     for (int i = 0; i < N; i++){
         v_new.push_back(v_i_new(v[i], f_new[i]));
     }
-    printf("\nCounted v");
+    //printf("\nCounted v");
     for (int i = 0; i < N; i++){
         r_new.push_back(r_i_new(r[i], v_new[i]));
     }
-    printf("\nCounted r\n");
+    //printf("\nCounted r\n");
     return std::make_pair(v_new, r_new);
 }
 
@@ -122,7 +126,7 @@ std::vector<float3> counting(HiCData& hic){
     std::vector<float3> v_start(hic.atomCount, {0.0f, 0.0f, 0.0f});
 
     for(int i = 0; i < hic.atomCount; i++){
-        r_start.push_back(float3{1.0f*i, 0.0, 0.0});
+        r_start.push_back(float3{1.0f*i - hic.atomCount/2, 0.0, 0.0});
         // printf("kek %f\n", 0.1*i);
     }
 
@@ -132,9 +136,6 @@ std::vector<float3> counting(HiCData& hic){
             max_U_ij = hic.pairs[k].n;
         }
     }
-    
-
-
     //numbers of pairs for i
     std::vector<std::vector<int> > k_for_i;
     std::vector<int> one_k_for_i;
@@ -150,23 +151,23 @@ std::vector<float3> counting(HiCData& hic){
         }
         k_for_i.push_back(one_k_for_i);
     }
-
-
+    
     //iterations by time
     std::vector<float3> r_new = r_start;
     std::vector<float3> v_new = v_start;
     std::pair<std::vector<float3>, std::vector<float3> > step_res;
 
-    float temp = 0.0;
+    //float temp = 0.0;
     std::string mod = "w";
     for(int t = 0; t < NSTEPS; t++){
         if (t % STRIDE == 0){
-            printf("%d %f\n", t, temp);
+            //printf("%d %f\n", t, temp);
+            printf("%d/%d \n", t, NSTEPS);
             saveCoordinates("coord.gro", mod, r_new, v_new, hic.atomCount);
             mod = "a";
         }
-        temp = 0.0;
-        step_res = step(hic, k_for_i, v_new, r_new, max_U_ij);
+        // temp = 0.0;
+        step_res = step(hic, k_for_i, v_new,  r_new, max_U_ij);
         v_new = step_res.first;
         r_new = step_res.second;
         // for(int i = 0; i < hic.atomCount; i++){
@@ -175,3 +176,8 @@ std::vector<float3> counting(HiCData& hic){
     }
     return r_new;
 } 
+
+
+
+
+
