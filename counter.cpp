@@ -14,7 +14,7 @@
 #define k_b 8.31 * 0.001 //кДж/К*моль
 #define tau 0.001 // пикасекунды
 #define T 300 //K
-#define NSTEPS 200 //1000000
+#define NSTEPS 1000000 //1000000
 #define STRIDE 10
 #define L 1.0
 
@@ -44,7 +44,7 @@ void saveCoordinates(const std::string filename,
 }
 
 
-float3 f_i_new(int& i, std::vector<std::vector<int> >& k_for_i, HiCData& hic, int& max_U_ij, std::vector<float3>& r){
+float3 f_i_new(int& i, std::vector<std::vector<int> >& k_for_i, std::vector<std::vector<int> >& k_for_i_back, HiCData& hic, int& max_U_ij, std::vector<float3>& r){
     float3 V_cov;
     float3 V_hic = {0, 0, 0};
     float3 dist1 = r[i].distance(r[i-1]);
@@ -66,6 +66,17 @@ float3 f_i_new(int& i, std::vector<std::vector<int> >& k_for_i, HiCData& hic, in
         r_ij_0 = 0.19 + 0.01*max_U_ij/n_pair;
         V_hic += dist0*k_ij * 2 - dist0/dist0.length()*r_ij_0;
     }
+    for(int k = 0; k < k_for_i_back[i].size(); k++){
+        int num_of_pair = k_for_i_back[i][k];
+        int j_pair = hic.pairs[num_of_pair].i;
+        int i_pair = hic.pairs[num_of_pair].j;
+        int n_pair = hic.pairs[num_of_pair].n;
+        float3 dist0 = r[i_pair].distance(r[j_pair]);
+        k_ij = 50*n_pair/max_U_ij;
+        r_ij_0 = 0.19 + 0.01*max_U_ij/n_pair;
+        V_hic += dist0*k_ij * 2 - dist0/dist0.length()*r_ij_0;
+    }
+
     return V_cov+V_hic;
 }
 
@@ -93,7 +104,7 @@ float3 r_i_new(float3 r_prev, float3 v_next){
     return v_next*tau + r_prev;
 }
 
-std::pair<std::vector<float3>, std::vector<float3> > step(HiCData& hic, std::vector<std::vector<int> >& k_for_i, std::vector<float3>& v, std::vector<float3>& r, int& max_U_ij ){
+std::pair<std::vector<float3>, std::vector<float3> > step(HiCData& hic, std::vector<std::vector<int> >& k_for_i, std::vector<std::vector<int> >& k_for_i_back, std::vector<float3>& v, std::vector<float3>& r, int& max_U_ij ){
     std::vector<float3> r_new;
     std::vector<float3> v_new;
     std::vector<float3> f_new;
@@ -101,18 +112,18 @@ std::pair<std::vector<float3>, std::vector<float3> > step(HiCData& hic, std::vec
     int N = hic.atomCount;
     int N_pairs = hic.pairCount;
     for(int i = 0; i < N; i++){
-        float3 res = f_i_new(i, k_for_i, hic, max_U_ij, r);
+        float3 res = f_i_new(i, k_for_i, k_for_i_back, hic, max_U_ij, r);
         f_new.push_back(res);
     }
-    printf("\nCounted f");
+    //printf("\nCounted f");
     for (int i = 0; i < N; i++){
         v_new.push_back(v_i_new(v[i], f_new[i]));
     }
-    printf("\nCounted v");
+    //printf("\nCounted v");
     for (int i = 0; i < N; i++){
         r_new.push_back(r_i_new(r[i], v_new[i]));
     }
-    printf("\nCounted r\n");
+    //printf("\nCounted r\n");
     return std::make_pair(v_new, r_new);
 }
 
@@ -122,7 +133,7 @@ std::vector<float3> counting(HiCData& hic){
     std::vector<float3> v_start(hic.atomCount, {0.0f, 0.0f, 0.0f});
 
     for(int i = 0; i < hic.atomCount; i++){
-        r_start.push_back(float3{1.0f*i, 0.0, 0.0});
+        r_start.push_back(float3{1.0f*i - hic.atomCount/2, 0.0, 0.0});
         // printf("kek %f\n", 0.1*i);
     }
 
@@ -134,18 +145,25 @@ std::vector<float3> counting(HiCData& hic){
     }
     //numbers of pairs for i
     std::vector<std::vector<int> > k_for_i;
+    std::vector<std::vector<int> > k_for_i_back;
     std::vector<int> one_k_for_i;
+    std::vector<int> one_k_for_i_back;
     for (int i = 0; i < hic.atomCount; i++){
         one_k_for_i.clear();
+        one_k_for_i_back.clear();
         for(int k = 0; k < hic.pairCount; k++){
             int i_pair = hic.pairs[k].i;
             int j_pair = hic.pairs[k].j;
             int n_pair = hic.pairs[k].n;
-            if (i_pair == i || j_pair == i){
+            if (i_pair == i){
                 one_k_for_i.push_back(k);
+            }
+            if (i_pair == i){
+                one_k_for_i_back.push_back(k);
             }
         }
         k_for_i.push_back(one_k_for_i);
+        k_for_i_back.push_back(one_k_for_i_back);
     }
     
     //iterations by time
@@ -153,16 +171,17 @@ std::vector<float3> counting(HiCData& hic){
     std::vector<float3> v_new = v_start;
     std::pair<std::vector<float3>, std::vector<float3> > step_res;
 
-    float temp = 0.0;
+    //float temp = 0.0;
     std::string mod = "w";
     for(int t = 0; t < NSTEPS; t++){
         if (t % STRIDE == 0){
-            printf("%d %f\n", t, temp);
+            //printf("%d %f\n", t, temp);
+            printf("%d \n", t);
             saveCoordinates("coord.gro", mod, r_new, v_new, hic.atomCount);
             mod = "a";
         }
-        temp = 0.0;
-        step_res = step(hic, k_for_i, v_new, r_new, max_U_ij);
+        // temp = 0.0;
+        step_res = step(hic, k_for_i, k_for_i_back, v_new,  r_new, max_U_ij);
         v_new = step_res.first;
         r_new = step_res.second;
         // for(int i = 0; i < hic.atomCount; i++){
