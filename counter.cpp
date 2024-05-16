@@ -13,9 +13,9 @@
 #define lambda 50
 #define k_b 8.31 * 0.001 //кДж/К*моль
 #define tau 0.001 // пикасекунды
-#define T 300 //K
-#define NSTEPS 10 //1000000
-#define STRIDE 1
+#define T 50 //K
+#define NSTEPS 5000 //1000000
+#define STRIDE 10
 #define L 1.0
 
 
@@ -42,7 +42,8 @@ void saveCoordinates(const std::string filename,
 
 float3 pair_grad(HarmonicPair& pair, float3& r_i, float3& r_j){
     float3 r_ij = r_i - r_j;
-    float3 grad_res = -(r_ij*2*pair.kc - r_ij/r_ij.length()*pair.kc*pair.r0);
+    float3 grad_res = -(r_ij*2*pair.kc - r_ij/r_ij.length()*pair.kc*2*pair.r0);
+    // printf("%f %f %f", (r_i - r_j).x, (r_i-r_j).y, (r_i-r_j).z);
     return grad_res;
 }
 
@@ -70,9 +71,9 @@ float3 r_i_new(float3 r_prev, float3 v_next){
     return v_next*tau + r_prev;
 }
 
-std::pair<std::vector<float3>, std::vector<float3> > step(std::vector<HarmonicPair> all_pairs, HiCData& hic, std::vector<float3>& v, std::vector<float3>& r, int& max_U_ij ){
-    std::vector<float3> r_new(hic.atomCount, {0.0f, 0.0f, 0.0f});
-    std::vector<float3> v_new(hic.atomCount, {0.0f, 0.0f, 0.0f});
+std::pair<std::vector<float3>, std::vector<float3> > step(std::vector<HarmonicPair>& all_pairs, HiCData& hic, std::vector<float3>& v, std::vector<float3>& r, int& max_U_ij ){
+    std::vector<float3> r_new;
+    std::vector<float3> v_new;
     std::vector<float3> f_new(hic.atomCount, {0.0f, 0.0f, 0.0f});
 
     int N = hic.atomCount;
@@ -81,31 +82,36 @@ std::pair<std::vector<float3>, std::vector<float3> > step(std::vector<HarmonicPa
     float3 fi;
     float3 fj;
     HarmonicPair pair;
+    // printf("\n!!!R <> came!!!!! r_size = %ld, v_size = %ld\n", r.size(), v.size());
+    // for(int i = 0; i < r.size(); i++){
+    //     printf("%f %f %f\n",r[i].x, r[i].y, r[i].z);
+    // }
+
     for(int p = 0; p < all_pairs.size(); p++){
         pair = all_pairs[p];
-        printf("\n%d - pair -%d\n", pair.i, pair.j);
-        fi = pair_grad(pair, r[pair.i], r[pair.j]); //градиент пары
-        printf("\n Grad res %f %f %f \n", fi.x, fi.y, fi.z);
+        // printf("\n%d - pair -%d\n", pair.i, pair.j);
+        fi = pair_grad(pair, r[pair.i], r[pair.j]); 
+        // printf("\n Grad res %f %f %f \n", fi.x, fi.y, fi.z);
         fj = -fi;
         f_new[pair.i] += fi;
         f_new[pair.j] += fj;
     }
 
-    printf("\nCounted f");
+    // printf("\nCounted f NNN = %d", N);
     float3 v_res;
     for (int i = 0; i < N; i++){
         v_res = v_i_new(v[i], f_new[i]);
         v_new.push_back(v_res);
-        printf("\n V res %f %f %f \n", v_res.x, v_res.y, v_res.z);
+        // printf("\n V res %f %f %f v size = %ld\n", v_res.x, v_res.y, v_res.z, v_new.size());
     }
-    printf("\nCounted v");
+    // printf("\nCounted v");
     float3 r_res;
     for (int i = 0; i < N; i++){
         r_res = r_i_new(r[i], v_new[i]);
         r_new.push_back(r_res);
-        printf("\n R res %f %f %f \n", r_res.x, r_res.y, r_res.z);
+        // printf("\n R res %f %f %f \n", r_res.x, r_res.y, r_res.z);
     }
-    printf("\nCounted r\n");
+    // printf("\nCounted r rsize %ld vsize %ld\n", r_new.size(), v_new.size());
     return std::make_pair(v_new, r_new);
 }
 
@@ -144,6 +150,7 @@ std::vector<float3> counting(HiCData& hic){
         one_pair.j = hic.pairs[p].j;
         one_pair.kc = 50.0 * hic.pairs[p].n/max_U_ij;
         one_pair.r0 = 0.19 + 0.01*max_U_ij/hic.pairs[p].n;
+        all_pairs.push_back(one_pair);
     }
 
 

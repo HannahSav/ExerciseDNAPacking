@@ -52,6 +52,6 @@ float3 v_i_new(float3 v_prev, float3 f);
 
 float3 r_i_new(float3 r_prev, float3 v_next);
 
-std::pair<std::vector<float3>, std::vector<float3> > step(std::vector<HarmonicPair> all_pairs, HiCData& hic, std::vector<float3>& v, std::vector<float3>& r, int& max_U_ij );
+std::pair<std::vector<float3>, std::vector<float3> > step(std::vector<HarmonicPair>& all_pairs, HiCData& hic, std::vector<float3>& v, std::vector<float3>& r, int& max_U_ij );
 
 std::vector<float3> counting(HiCData& hic);
