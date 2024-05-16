@@ -2,6 +2,8 @@
 #include <vector>
 #include <string>
 
+#include <random>
+
 
 struct HarmonicPair{
     int i, j;
@@ -48,10 +50,10 @@ void saveCoordinates(const std::string filename,
 
 float3 pair_grad(HarmonicPair& pair, float3& r_i, float3& r_j);
 
-float3 v_i_new(float3 v_prev, float3 f);
+float3 v_i_new(float3 v_prev, float3 f, std::mt19937& gen, std::normal_distribution<>& d);
 
 float3 r_i_new(float3 r_prev, float3 v_next);
 
-std::pair<std::vector<float3>, std::vector<float3> > step(std::vector<HarmonicPair>& all_pairs, HiCData& hic, std::vector<float3>& v, std::vector<float3>& r, int& max_U_ij );
+void step(const std::vector<HarmonicPair>& all_pairs, const HiCData& hic, std::vector<float3>& v, std::vector<float3>& r, std::vector<float3>& f, int max_U_ij, std::mt19937& gen, std::normal_distribution<>& d);
 
 std::vector<float3> counting(HiCData& hic);
