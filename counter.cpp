@@ -14,7 +14,7 @@
 #define k_b 8.31 * 0.001 //кДж/К*моль
 #define tau 0.001 // пикасекунды
 #define T 300 //K
-#define NSTEPS 300 //1000000
+#define NSTEPS 500 //1000000
 #define STRIDE 10
 #define L 1.0
 
